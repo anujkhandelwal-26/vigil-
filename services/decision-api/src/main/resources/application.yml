@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: vigil-decision-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/vigil}
+    username: ${SPRING_DATASOURCE_USERNAME:vigil}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: filesystem:${VIGIL_FLYWAY_LOCATION:../../db}
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+
+vigil:
+  jwt:
+    secret: ${VIGIL_JWT_SECRET:}
+    ttl-minutes: ${VIGIL_JWT_TTL_MINUTES:60}
+  ml-service:
+    url: ${VIGIL_ML_SERVICE_URL:http://localhost:8001}
+    timeout-ms: ${VIGIL_ML_TIMEOUT_MS:150}
+  demo:
+    password: ${VIGIL_DEMO_PASSWORD:}
+
+logging:
+  level:
+    com.vigil: INFO
+    org.springframework.security: WARN
