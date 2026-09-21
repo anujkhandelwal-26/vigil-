@@ -94,6 +94,16 @@ letting the LLM decide which tool to call.
 search — exact identifier joins are the right tool for that question, and using pgvector for it
 would be worse, not better.
 
+## Docker build notes
+
+All three Dockerfiles were build-tested and run-tested, not just written: `docker build` on each,
+then `docker run` against the real Postgres via `host.docker.internal` (decision-api reached
+`/actuator/health` 200; ml-service booted clean). One real bug was caught this way:
+`python:3.12-slim` omits `libgomp1` (the OpenMP runtime), which LightGBM's native library requires —
+without it the container fails at import time with `OSError: libgomp.so.1: cannot open shared object
+file`. Fixed by installing `libgomp1` via `apt-get` before the pip install layer in
+`services/ml-service/Dockerfile`. `docker compose --profile full config` also validates cleanly.
+
 ## Ring detection threshold calibration
 
 `nomic-embed-text` embeddings of the structured behavioural-profile text used for ring detection

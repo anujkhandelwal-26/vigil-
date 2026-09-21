@@ -169,7 +169,12 @@ def narrative(application_id: str):
     provider = get_llm_provider()
     t0 = time.time()
     try:
-        raw = provider.complete("You are a precise, grounded fraud-analyst assistant.", prompt, max_tokens=250)
+        # The prompt template is a fully self-contained "SYSTEM:"-prefixed
+        # instruction block; layering a second, generic system message on
+        # top of it made qwen2.5:3b default to the rule-3 refusal string
+        # regardless of context sufficiency (reproduced directly against
+        # Ollama). Pass no separate system prompt here.
+        raw = provider.complete("", prompt, max_tokens=250)
     except Exception as e:
         raw = ""
         print(f"[narrative] LLM call failed: {e}")
@@ -240,6 +245,12 @@ def copilot(req: CopilotRequest):
             guardrail_violations=[], provider="none", model="none", latency_ms=0,
         )
 
+    if ctx.is_terminal_finding(context_text):
+        return CopilotResponse(
+            answer=context_text, intent=intent, grounded=True, cited_ids=cited_ids,
+            guardrail_violations=[], provider="none", model="none", latency_ms=0,
+        )
+
     prompt = COPILOT_TEMPLATE.format(
         reason_codes_catalogue=catalogue_text,
         intent=intent,
@@ -250,7 +261,9 @@ def copilot(req: CopilotRequest):
     provider = get_llm_provider()
     t0 = time.time()
     try:
-        raw = provider.complete("You are a precise, grounded fraud-analyst copilot.", prompt, max_tokens=250)
+        # See the narrative() comment above: no separate system prompt --
+        # the template already carries its own SYSTEM: block.
+        raw = provider.complete("", prompt, max_tokens=250)
     except Exception as e:
         raw = ""
         print(f"[copilot] LLM call failed: {e}")

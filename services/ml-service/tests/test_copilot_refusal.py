@@ -70,3 +70,14 @@ def test_behaviour_delta_with_no_prior_applications_says_so(lonely_application):
                "form_fill_seconds": 150, "amount_inr": 50000}
     text, cited_ids = ctx.behaviour_delta(app_row, app_id)
     assert "No prior applications" in text
+
+
+def test_terminal_findings_bypass_the_llm_instead_of_being_paraphrased():
+    # Regression test: the small local model would paraphrase a genuine,
+    # grounded "no data" finding into the generic refusal string instead
+    # of stating the fact it was given. main.py now short-circuits these
+    # straight to the analyst rather than asking the LLM to reword them.
+    assert ctx.is_terminal_finding("No prior applications on file for this applicant to compare against.")
+    assert ctx.is_terminal_finding("No other applications on file share this device hash.")
+    assert ctx.is_terminal_finding("No similar past cases found in the case index.")
+    assert not ctx.is_terminal_finding("This applicant has 2 prior application(s) on file.")

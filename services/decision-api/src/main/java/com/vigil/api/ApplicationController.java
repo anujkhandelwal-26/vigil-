@@ -72,7 +72,7 @@ public class ApplicationController {
         return Map.of("application", app, "decision", decision == null ? Map.of() : decision);
     }
 
-    @GetMapping("/{id}/narrative")
+    @PostMapping("/{id}/narrative")
     public Map<String, Object> narrative(@PathVariable UUID id) {
         return mlClient.narrative(id.toString());
     }

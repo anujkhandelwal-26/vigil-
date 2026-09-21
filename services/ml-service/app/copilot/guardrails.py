@@ -11,7 +11,15 @@ import re
 
 REASON_CODE_PATTERN = re.compile(r"\[([A-Z0-9_]+)\]")
 NUMBER_PATTERN = re.compile(r"(?<![\w.])\d[\d,]*\.?\d*%?")
-DECISION_VERBS = re.compile(r"\b(approve|approved|decline|declined|reject|rejected|recommend)\b", re.IGNORECASE)
+# Blocks the LLM acting as a decision-maker (recommending or advising an
+# action) without blocking factual past-tense description of a decision the
+# scoring engine already made ("this application was declined") -- the
+# copilot is explicitly required to describe that as a fact, not refuse it.
+DECISION_VERBS = re.compile(
+    r"\b(i\s+recommend|we\s+recommend|recommend(ing|s)?\s+(that\s+)?(you|we)|"
+    r"you\s+should|i\s+(would|suggest|advise)|please\s+(approve|decline|reject))\b",
+    re.IGNORECASE,
+)
 # Coarse PII patterns: full PAN (AAAAA9999A), a 12-digit run (Aadhaar-shaped),
 # or a 10-digit run (mobile-shaped). These must never appear in output even
 # if present in context, because context only ever carries masked forms.

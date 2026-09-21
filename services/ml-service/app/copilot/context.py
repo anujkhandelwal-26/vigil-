@@ -16,6 +16,26 @@ _ENTITY_FIELD_KEYWORDS = [
     ("mobile_hash", ["mobile number", "phone number", "mobile"]),
 ]
 
+# Context builders sometimes retrieve a definitive *absence* of data (no
+# priors, no similar cases, no ring, ...). That sentence is already the
+# correct, complete answer -- routing it through the LLM for paraphrase is
+# where a small local model's refusal reflex tends to fire, discarding a
+# real, grounded answer for the generic "I don't have data" line instead.
+# Any context_text starting with one of these is passed straight through.
+TERMINAL_FINDING_PREFIXES = (
+    "No decision found on file",
+    "No SHAP contribution data on file",
+    "No prior applications on file",
+    "No other applications on file share",
+    "No behavioural embedding on file",
+    "No similar past cases found",
+    "No matching policy passages found",
+)
+
+
+def is_terminal_finding(context_text: str) -> bool:
+    return context_text.startswith(TERMINAL_FINDING_PREFIXES)
+
 
 def _get_latest_decision(application_id: str) -> dict | None:
     with get_conn() as conn:

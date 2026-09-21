@@ -1,5 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
+# libgomp1 is required by LightGBM's native library (OpenMP runtime) --
+# python:3.12-slim omits it, and the container fails at import time
+# ("libgomp.so.1: cannot open shared object file") without this.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1     && rm -rf /var/lib/apt/lists/*
 RUN groupadd -r vigil && useradd -r -g vigil vigil
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
