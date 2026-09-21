@@ -1,0 +1,95 @@
+# VIGIL — local stack.
+#
+# Development posture (used for the recorded demo): only `db` runs in Docker.
+# decision-api, ml-service and web run natively on the host (see README) —
+# this avoids container-networking risk and gives a fast reload loop.
+#
+# `docker compose --profile full up` brings up the complete containerised
+# stack (decision-api + ml-service + web too), which is what a reviewer would
+# use to run VIGIL without installing Java/Python/Node locally.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: vigil-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vigil}
+      POSTGRES_USER: ${POSTGRES_USER:-vigil}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - vigil-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vigil} -d ${POSTGRES_DB:-vigil}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ml-service:
+    profiles: ["full"]
+    build: ./services/ml-service
+    container_name: vigil-ml-service
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vigil}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vigil}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:3b-instruct-q4_K_M}
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      EMBED_DIM: ${EMBED_DIM:-768}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${ML_SERVICE_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  decision-api:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: services/decision-api/Dockerfile
+    container_name: vigil-decision-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-vigil}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-vigil}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      VIGIL_JWT_SECRET: ${VIGIL_JWT_SECRET:?set VIGIL_JWT_SECRET in .env}
+      VIGIL_ML_SERVICE_URL: http://ml-service:8001
+      VIGIL_DEMO_PASSWORD: ${VIGIL_DEMO_PASSWORD:?set VIGIL_DEMO_PASSWORD in .env}
+    ports:
+      - "${SERVER_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    profiles: ["full"]
+    build: ./web
+    container_name: vigil-web
+    restart: unless-stopped
+    depends_on:
+      - decision-api
+    ports:
+      - "5174:80"
+
+volumes:
+  vigil-db-data:

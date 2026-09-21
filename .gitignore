@@ -1,0 +1,38 @@
+# secrets
+.env
+*.env.local
+
+# java
+services/decision-api/target/
+services/decision-api/.mvn/wrapper/*.jar
+!services/decision-api/.mvn/wrapper/maven-wrapper.properties
+*.class
+*.jar
+!services/decision-api/mvnw
+!services/decision-api/mvnw.cmd
+
+# python
+services/ml-service/.venv/
+services/ml-service/__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+services/ml-service/app/models/*.pkl
+services/ml-service/app/models/*.joblib
+services/ml-service/artifacts/
+
+# node
+web/node_modules/
+web/dist/
+web/.vite/
+
+# data (generated, large, reproducible from the generator)
+data/generated/
+
+# os / editor
+.DS_Store
+*.swp
+
+# logs / run state
+*.log
+.run/
