@@ -36,3 +36,4 @@ data/generated/
 # logs / run state
 *.log
 .run/
+.vigil-run/
