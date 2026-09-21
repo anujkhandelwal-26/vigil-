@@ -1,3 +1,5 @@
+import { Chip, Empty } from './ui'
+
 const TITLES = {
   DEVICE_REUSE_HIGH: 'Device reused across applications',
   IP_MULTI_APPLICANT: 'Many applicants from one network',
@@ -19,13 +21,11 @@ const TITLES = {
 }
 
 export default function ReasonChips({ codes }) {
-  if (!codes || codes.length === 0) return <span className="faint">No reason codes attached.</span>
+  if (!codes || codes.length === 0) return <Empty>No reason codes attached.</Empty>
   return (
     <div>
       {codes.map((c) => (
-        <span className="chip" key={c} title={c}>
-          {TITLES[c] || c}
-        </span>
+        <Chip key={c} title={c}>{TITLES[c] || c}</Chip>
       ))}
     </div>
   )

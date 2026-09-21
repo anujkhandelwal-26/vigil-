@@ -10,6 +10,12 @@ import ReasonChips from '../components/ReasonChips'
 import ShapWaterfall from '../components/ShapWaterfall'
 import KpiTile from '../components/KpiTile'
 import CopilotChat from '../components/CopilotChat'
+import { Button, Empty, Field, Panel } from '../components/ui'
+
+const inr = (value) =>
+  value == null ? '—' : new Intl.NumberFormat('en-IN', {
+    style: 'currency', currency: 'INR', maximumFractionDigits: 0,
+  }).format(Number(value))
 
 function CaseDetail({ id, onFeedbackDone }) {
   const { data, isLoading } = useGetApplicationDetailQuery(id, { skip: !id })
@@ -18,8 +24,8 @@ function CaseDetail({ id, onFeedbackDone }) {
   const [submitFeedback, { isLoading: fbLoading }] = useSubmitFeedbackMutation()
   const [note, setNote] = useState('')
 
-  if (!id) return <div className="card"><span className="faint">Select a case from the queue to see details.</span></div>
-  if (isLoading || !data) return <div className="card">Loading case…</div>
+  if (!id) return <Panel><Empty>Select a case from the queue to see details.</Empty></Panel>
+  if (isLoading || !data) return <Panel><Empty>Loading case…</Empty></Panel>
 
   const app = data.application
   const decision = data.decision
@@ -36,100 +42,149 @@ function CaseDetail({ id, onFeedbackDone }) {
     onFeedbackDone?.()
   }
 
+  const noveltyGap = decision?.anomalyScore != null
+    && Number(decision.anomalyScore) > 0.85 && Number(decision.riskScore) < 0.15
+
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>{app.externalRef}</h2>
-        <ActionBadge action={decision?.action} />
-      </div>
+    <div className="space-y-4">
+      <Panel
+        title={app.externalRef}
+        action={<ActionBadge action={decision?.action} />}
+      >
+        {noveltyGap && (
+          <div className="mb-4 border-l-2 bg-surface px-4 py-3" style={{ borderColor: 'var(--color-riskup)' }}>
+            <p className="text-[13px] font-medium" style={{ color: 'var(--color-riskup)' }}>
+              Novel pattern detected
+            </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+              The supervised model scores this application as low-risk ({Number(decision.riskScore).toFixed(3)}) —
+              it has never seen this behavioural signature in training. But the unsupervised novelty
+              channel flags it as highly anomalous ({Number(decision.anomalyScore).toFixed(3)}). This is
+              exactly the gap a purely supervised system would miss: a fraud typology the model was
+              never trained on. Confirm with the copilot / feedback loop below and retrain.
+            </p>
+          </div>
+        )}
 
-      {ringData?.ring && (
-        <div className="card" style={{ background: 'rgba(224,90,90,0.1)', border: '1px solid var(--decline)', margin: '12px 0' }}>
-          <strong style={{ color: 'var(--decline)' }}>🔗 Fraud ring detected</strong>
-          <p className="muted" style={{ margin: '6px 0 0 0' }}>
-            {ringData.ring.member_count} applications · detected via{' '}
-            {ringData.ring.detection_method === 'behavioural_embedding_only'
-              ? 'behavioural embedding similarity (no shared identifier)'
-              : 'shared identifier + behavioural similarity'} ·
-            {' '}₹{Number(ringData.ring.total_exposure_inr || 0).toLocaleString('en-IN')} distance-weighted exposure
-          </p>
-        </div>
-      )}
+        {ringData?.ring && (
+          <div className="mb-4 border-l-2 bg-surface px-4 py-3" style={{ borderColor: 'var(--color-riskup)' }}>
+            <p className="text-[13px] font-medium" style={{ color: 'var(--color-riskup)' }}>
+              Fraud ring detected
+            </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+              {ringData.ring.member_count} applications · detected via{' '}
+              {ringData.ring.detection_method === 'behavioural_embedding_only'
+                ? 'behavioural embedding similarity (no shared identifier)'
+                : 'shared identifier + behavioural similarity'} ·{' '}
+              {inr(ringData.ring.total_exposure_inr || 0)} distance-weighted exposure
+            </p>
+          </div>
+        )}
 
-      <div className="grid cols-3" style={{ marginTop: 12 }}>
-        <div>
-          <h3>Applicant</h3>
-          <p className="muted">
-            Age {app.age} · {app.employmentType} · ₹{Number(app.monthlyIncomeInr).toLocaleString('en-IN')}/mo<br />
-            {app.residenceType} · Tier {app.cityTier} · PIN {app.pincodePrefix}xx
-          </p>
-          <h3>Loan</h3>
-          <p className="muted">
-            {app.product} · ₹{Number(app.amountInr).toLocaleString('en-IN')} · {app.tenureMonths}mo · {app.channel}
-          </p>
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiTile label="Risk score" value={decision ? Number(decision.riskScore).toFixed(3) : '—'} />
+          <KpiTile label="Anomaly score" value={decision?.anomalyScore != null ? Number(decision.anomalyScore).toFixed(3) : '—'} />
+          <KpiTile label="Latency" value={decision?.latencyMs != null ? `${decision.latencyMs}ms` : '—'} />
+          <KpiTile label="Model" value={decision?.modelVersion ?? '—'} />
         </div>
-        <div>
-          <h3>Device &amp; behaviour</h3>
-          <p className="muted">
-            Reused {app.deviceReuseCount30d}× (30d) · {app.isEmulator ? 'emulator' : 'real device'}<br />
-            Form fill {app.formFillSeconds}s · {app.pasteEvents} paste events<br />
-            IP apps (24h): {app.ipDistinctApps24h} {app.vpnOrProxy ? '· VPN/proxy' : ''}
-          </p>
-          <h3>Banking &amp; mobile</h3>
-          <p className="muted">
-            Penny-drop match {app.pennyDropNameMatch} · shared with {app.accountSharedWithNApplicants}<br />
-            SIM swap (30d): {String(app.recentSimSwap30d)}
-          </p>
-        </div>
-        <div>
-          <h3>Score</h3>
-          <p className="muted">
-            Risk {decision ? Number(decision.riskScore).toFixed(3) : '—'}<br />
-            Anomaly {decision?.anomalyScore != null ? Number(decision.anomalyScore).toFixed(3) : '—'}<br />
-            Latency {decision?.latencyMs ?? '—'}ms · {decision?.modelVersion}
-          </p>
-        </div>
-      </div>
 
-      <h3 style={{ marginTop: 16 }}>Reason codes</h3>
-      <ReasonChips codes={decision?.reasonCodes} />
+        <div className="grid gap-x-10 gap-y-5 lg:grid-cols-2">
+          <div>
+            <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Applicant</h3>
+            <dl>
+              <Field label="Age">{app.age}</Field>
+              <Field label="Employment">{app.employmentType}</Field>
+              <Field label="Monthly income">{inr(app.monthlyIncomeInr)}</Field>
+              <Field label="Residence">{app.residenceType}</Field>
+              <Field label="City tier / pincode">Tier {app.cityTier} · {app.pincodePrefix}xx</Field>
+            </dl>
+
+            <h3 className="mb-1 mt-4 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Loan</h3>
+            <dl>
+              <Field label="Product">{app.product}</Field>
+              <Field label="Amount">{inr(app.amountInr)}</Field>
+              <Field label="Tenure">{app.tenureMonths} months</Field>
+              <Field label="Channel">{app.channel}</Field>
+            </dl>
+          </div>
+
+          <div>
+            <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Device &amp; behaviour</h3>
+            <dl>
+              <Field label="Device reuse (30d)">{app.deviceReuseCount30d}×</Field>
+              <Field label="Device type">{app.isEmulator ? 'Emulator' : 'Real device'}{app.isRooted ? ' · rooted' : ''}</Field>
+              <Field label="Form fill time">{app.formFillSeconds}s</Field>
+              <Field label="Paste events">{app.pasteEvents}</Field>
+              <Field label="IP apps (24h)">{app.ipDistinctApps24h}{app.vpnOrProxy ? ' · VPN/proxy' : ''}</Field>
+            </dl>
+
+            <h3 className="mb-1 mt-4 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Banking &amp; mobile</h3>
+            <dl>
+              <Field label="Penny-drop match">{app.pennyDropNameMatch}</Field>
+              <Field label="Account shared with">{app.accountSharedWithNApplicants} applicants</Field>
+              <Field label="Recent SIM swap (30d)">{String(app.recentSimSwap30d)}</Field>
+            </dl>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Reason codes">
+        <ReasonChips codes={decision?.reasonCodes} />
+      </Panel>
 
       {shapTop && (
-        <>
-          <h3 style={{ marginTop: 16 }}>SHAP — top contributing signals</h3>
+        <Panel title="SHAP — top contributing signals">
           <ShapWaterfall shapTop={shapTop} />
-        </>
+        </Panel>
       )}
 
-      <h3 style={{ marginTop: 16 }}>Analyst narrative</h3>
-      {!narrativeState.data && (
-        <button className="secondary" onClick={() => getNarrative(id)} disabled={narrativeState.isFetching}>
-          {narrativeState.isFetching ? 'Generating…' : 'Generate narrative'}
-        </button>
-      )}
-      {narrativeState.data && (
-        <div>
-          <p>{narrativeState.data.narrative}</p>
-          <span className={`grounded-badge ${narrativeState.data.grounded ? '' : 'fallback'}`}>
-            {narrativeState.data.grounded ? 'grounded ✓' : 'fallback template'} ·{' '}
-            {narrativeState.data.provider}/{narrativeState.data.model} ·{' '}
-            {narrativeState.data.cached ? 'cached' : `${narrativeState.data.latency_ms}ms`}
-          </span>
+      <Panel
+        title="Analyst narrative"
+        action={!narrativeState.data && (
+          <Button onClick={() => getNarrative(id)} disabled={narrativeState.isFetching}>
+            {narrativeState.isFetching ? 'Generating…' : 'Generate narrative'}
+          </Button>
+        )}
+      >
+        {narrativeState.data ? (
+          <div>
+            <p className="font-serif text-[14px] leading-relaxed text-ink">{narrativeState.data.narrative}</p>
+            <span
+              className="mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px]"
+              style={{
+                color: narrativeState.data.grounded ? 'var(--color-riskdown)' : 'var(--color-a-stepup)',
+                borderColor: narrativeState.data.grounded ? 'var(--color-riskdown)' : 'var(--color-a-stepup)',
+              }}
+            >
+              {narrativeState.data.grounded ? 'grounded ✓' : 'fallback template'} ·{' '}
+              {narrativeState.data.provider}/{narrativeState.data.model} ·{' '}
+              {narrativeState.data.cached ? 'cached' : `${narrativeState.data.latency_ms}ms`}
+            </span>
+          </div>
+        ) : (
+          <Empty>No narrative generated yet.</Empty>
+        )}
+      </Panel>
+
+      <Panel title="Copilot">
+        <CopilotChat applicationId={id} />
+      </Panel>
+
+      <Panel title="Verdict">
+        <label className="mb-3 block max-w-sm">
+          <span className="text-[12px] text-ink-muted">Note (optional)</span>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What did you see that the engine did not?"
+            className="mt-1 w-full border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
+          />
+        </label>
+        <div className="flex gap-2">
+          <Button variant="danger" disabled={fbLoading} onClick={() => handleFeedback('FRAUD')}>Confirm fraud</Button>
+          <Button variant="success" disabled={fbLoading} onClick={() => handleFeedback('LEGIT')}>Mark legitimate</Button>
         </div>
-      )}
-
-      <h3 style={{ marginTop: 16 }}>Copilot</h3>
-      <CopilotChat applicationId={id} />
-
-      <h3 style={{ marginTop: 16 }}>Verdict</h3>
-      <div className="field" style={{ maxWidth: 400, marginBottom: 8 }}>
-        <label>Note (optional)</label>
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you see that the engine did not?" />
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="secondary danger" disabled={fbLoading} onClick={() => handleFeedback('FRAUD')}>Confirm Fraud</button>
-        <button className="secondary success" disabled={fbLoading} onClick={() => handleFeedback('LEGIT')}>Mark Legitimate</button>
-      </div>
+      </Panel>
     </div>
   )
 }
@@ -158,8 +213,8 @@ export default function AnalystDashboard() {
   const byAction = Object.fromEntries((kpis?.byAction || []).map((r) => [r.action, r.n]))
 
   return (
-    <div>
-      <div className="grid cols-6" style={{ marginBottom: 16 }}>
+    <div className="space-y-4 p-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KpiTile label="Decisions (24h)" value={kpis?.decisionsLast24h ?? '—'} />
         <KpiTile label="p95 latency" value={kpis ? `${Number(kpis.p95LatencyMs).toFixed(0)}ms` : '—'} />
         <KpiTile label="Approve" value={byAction.APPROVE ?? 0} />
@@ -169,143 +224,155 @@ export default function AnalystDashboard() {
       </div>
 
       {costCurve && costCurve.four_way_decline_rate != null && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h2>False-positive reduction — four actions, not two</h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            We didn't move the threshold. We added two more actions (STEP_UP, REVIEW) between
+        <Panel title="False-positive reduction — four actions, not two">
+          <p className="mb-3 text-[12px] leading-relaxed text-ink-muted">
+            We didn't move the threshold. We added two more actions (step-up, review) between
             approve and decline, so borderline applicants face friction instead of rejection.
           </p>
-          <div className="grid cols-4">
-            <div className="kpi-tile">
-              <div className="label">Binary decline rate (t=0.5)</div>
-              <div className="value">{(costCurve.naive_binary_decline_rate * 100).toFixed(2)}%</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Four-way decline rate</div>
-              <div className="value" style={{ color: 'var(--approve)' }}>
-                {(costCurve.four_way_decline_rate * 100).toFixed(2)}%
-              </div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Binary FP rate</div>
-              <div className="value">{(costCurve.naive_binary_fp_rate * 100).toFixed(3)}%</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Four-way FP rate</div>
-              <div className="value" style={{ color: 'var(--approve)' }}>
-                {(costCurve.four_way_fp_rate * 100).toFixed(3)}%
-              </div>
-            </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <KpiTile label="Binary decline rate (t=0.5)" value={`${(costCurve.naive_binary_decline_rate * 100).toFixed(2)}%`} />
+            <KpiTile
+              label="Four-way decline rate"
+              value={<span style={{ color: 'var(--color-riskdown)' }}>{(costCurve.four_way_decline_rate * 100).toFixed(2)}%</span>}
+            />
+            <KpiTile label="Binary FP rate" value={`${(costCurve.naive_binary_fp_rate * 100).toFixed(3)}%`} />
+            <KpiTile
+              label="Four-way FP rate"
+              value={<span style={{ color: 'var(--color-riskdown)' }}>{(costCurve.four_way_fp_rate * 100).toFixed(3)}%</span>}
+            />
           </div>
           {costCurve.cost_assumptions_inr && (
-            <p className="faint" style={{ marginTop: 10 }}>
-              Cost assumptions: ₹{costCurve.cost_assumptions_inr.C_FN.toLocaleString('en-IN')} per missed
-              fraud · ₹{costCurve.cost_assumptions_inr.C_FP.toLocaleString('en-IN')} per wrongly-declined
-              good customer · ₹{costCurve.cost_assumptions_inr.C_STEPUP} step-up friction ·
-              ₹{costCurve.cost_assumptions_inr.C_REVIEW} analyst review.
+            <p className="mt-3 border-t border-rule-soft pt-2 text-[11px] leading-relaxed text-ink-faint">
+              Cost assumptions: {inr(costCurve.cost_assumptions_inr.C_FN)} per missed fraud ·{' '}
+              {inr(costCurve.cost_assumptions_inr.C_FP)} per wrongly-declined good customer ·{' '}
+              {inr(costCurve.cost_assumptions_inr.C_STEPUP)} step-up friction ·{' '}
+              {inr(costCurve.cost_assumptions_inr.C_REVIEW)} analyst review.
               Thresholds: low={Number(costCurve.thresholds?.low).toFixed(2)},
               high={Number(costCurve.thresholds?.high).toFixed(2)},
               decline={Number(costCurve.thresholds?.decline).toFixed(2)} ({costCurve.model_version}).
             </p>
           )}
           {costCurve.fairness && (
-            <>
-              <h3 style={{ marginTop: 16 }}>Fairness — disparate-impact ratio (80% rule)</h3>
-              <div className="grid cols-4">
+            <div className="mt-4 border-t border-rule-soft pt-3">
+              <h3 className="mb-2 text-[12px] text-ink-muted">Fairness — disparate-impact ratio (80% rule)</h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {Object.entries(costCurve.fairness).flatMap(([group, rows]) =>
                   Object.entries(rows).map(([label, v]) => (
-                    <div className="kpi-tile" key={`${group}-${label}`}>
-                      <div className="label">{group}: {label}</div>
-                      <div className="value" style={{ fontSize: 18 }}>
-                        {(v.disparate_impact_ratio * 100).toFixed(1)}%
-                      </div>
-                      <div className="sub">n={v.n} · approval {(v.approval_rate * 100).toFixed(1)}%</div>
-                    </div>
+                    <KpiTile
+                      key={`${group}-${label}`}
+                      label={`${group}: ${label}`}
+                      value={`${(v.disparate_impact_ratio * 100).toFixed(1)}%`}
+                      sub={`n=${v.n} · approval ${(v.approval_rate * 100).toFixed(1)}%`}
+                    />
                   ))
                 )}
               </div>
-            </>
+            </div>
           )}
-        </div>
+        </Panel>
       )}
 
-      <div className="grid cols-2">
-        <div>
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}>Queue</h2>
-              <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={{ background: 'var(--panel-2)', color: 'var(--ink)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px' }}>
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+        <div className="space-y-4">
+          <Panel
+            title="Queue"
+            action={
+              <select
+                value={actionFilter}
+                onChange={(e) => setActionFilter(e.target.value)}
+                className="border border-rule bg-surface px-2 py-1 text-[12px]"
+              >
                 <option value="ALL">All actions</option>
                 <option value="DECLINE">Decline</option>
                 <option value="REVIEW">Review</option>
                 <option value="STEP_UP">Step-up</option>
                 <option value="APPROVE">Approve</option>
               </select>
-            </div>
-            <table>
+            }
+          >
+            <table className="w-full text-[12px]">
               <thead>
-                <tr><th>Ref</th><th>Product</th><th>Amount</th><th>Action</th><th>Score</th><th>Latency</th></tr>
+                <tr className="border-b border-rule-soft text-left text-ink-muted">
+                  <th className="pb-1.5 font-medium">Ref</th>
+                  <th className="pb-1.5 font-medium">Product</th>
+                  <th className="pb-1.5 font-medium">Amount</th>
+                  <th className="pb-1.5 font-medium">Action</th>
+                  <th className="pb-1.5 font-medium">Score</th>
+                  <th className="pb-1.5 text-right font-medium">Latency</th>
+                </tr>
               </thead>
               <tbody>
                 {(queue || []).map((a) => (
-                  <tr key={a.id} onClick={() => setSelectedId(a.id)}>
-                    <td className="mono">{a.externalRef}</td>
-                    <td>{a.product}</td>
-                    <td>₹{Number(a.amountInr).toLocaleString('en-IN')}</td>
-                    <td><ActionBadge action={a.action} /></td>
-                    <td>{a.riskScore != null ? Number(a.riskScore).toFixed(2) : '—'}</td>
-                    <td>{a.latencyMs ?? '—'}ms</td>
+                  <tr
+                    key={a.id}
+                    onClick={() => setSelectedId(a.id)}
+                    aria-current={selectedId === a.id}
+                    className={`cursor-pointer border-b border-rule-soft/60 hover:bg-paper ${selectedId === a.id ? 'bg-paper' : ''}`}
+                  >
+                    <td className="hash py-1.5">{a.externalRef}</td>
+                    <td className="py-1.5">{a.product}</td>
+                    <td className="tnum py-1.5">{inr(a.amountInr)}</td>
+                    <td className="py-1.5"><ActionBadge action={a.action} /></td>
+                    <td className="tnum py-1.5">{a.riskScore != null ? Number(a.riskScore).toFixed(2) : '—'}</td>
+                    <td className="tnum py-1.5 text-right text-ink-faint">{a.latencyMs ?? '—'}ms</td>
                   </tr>
                 ))}
                 {(!queue || queue.length === 0) && (
-                  <tr><td colSpan={6} className="faint">No applications yet — submit one from the Application tab.</td></tr>
+                  <tr><td colSpan={6} className="py-4 text-center text-ink-faint">No applications yet — submit one from the Application tab.</td></tr>
                 )}
               </tbody>
             </table>
-          </div>
+          </Panel>
 
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}>Model registry</h2>
-              {role === 'ADMIN' ? (
-                <button className="secondary" onClick={handleRetrain} disabled={retraining}>
-                  {retraining ? 'Retraining…' : 'Retrain from feedback'}
-                </button>
-              ) : (
-                <span className="faint">Retrain requires ADMIN role</span>
-              )}
-            </div>
+          <Panel
+            title="Model registry"
+            action={role === 'ADMIN' ? (
+              <Button onClick={handleRetrain} disabled={retraining}>
+                {retraining ? 'Retraining…' : 'Retrain from feedback'}
+              </Button>
+            ) : (
+              <span className="text-[11px] text-ink-faint">Retrain requires ADMIN role</span>
+            )}
+          >
             {retrainResult && !retrainResult.error && (
-              <p className={retrainResult.promoted ? 'muted' : 'faint'} style={{ marginTop: 8 }}>
-                <strong style={{ color: retrainResult.promoted ? 'var(--approve)' : 'var(--stepup)' }}>
+              <p className="mb-3 text-[12px] leading-relaxed text-ink-muted">
+                <strong style={{ color: retrainResult.promoted ? 'var(--color-riskdown)' : 'var(--color-a-stepup)' }}>
                   {retrainResult.version}
                 </strong>
-                {' '}— {retrainResult.promoted_reason} (trained on {retrainResult.training_rows} rows,
-                {' '}{retrainResult.feedback_rows_used} from analyst feedback, in {retrainResult.train_seconds}s)
+                {' '}— {retrainResult.promoted_reason} (trained on {retrainResult.training_rows} rows,{' '}
+                {retrainResult.feedback_rows_used} from analyst feedback, in {retrainResult.train_seconds}s)
               </p>
             )}
             {retrainResult?.error && (
-              <p className="error-text" style={{ marginTop: 8 }}>{retrainResult.message}</p>
+              <p className="mb-3 text-[13px] text-[#9c3211]">{retrainResult.message}</p>
             )}
             {models && models.length > 0 ? (
-              <table>
-                <thead><tr><th>Version</th><th>Algorithm</th><th>PR-AUC</th><th>Recall@1%FPR</th><th>Active</th></tr></thead>
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-rule-soft text-left text-ink-muted">
+                    <th className="pb-1.5 font-medium">Version</th>
+                    <th className="pb-1.5 font-medium">Algorithm</th>
+                    <th className="pb-1.5 font-medium">PR-AUC</th>
+                    <th className="pb-1.5 font-medium">Recall@1%FPR</th>
+                    <th className="pb-1.5 text-right font-medium">Active</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {models.map((m) => (
-                    <tr key={m.id}>
-                      <td className="mono">{m.version}</td>
-                      <td>{m.algorithm}</td>
-                      <td>{m.prAuc}</td>
-                      <td>{m.recallAt1pctFpr}</td>
-                      <td>{m.active ? '✓' : ''}</td>
+                    <tr key={m.id} className="border-b border-rule-soft/60">
+                      <td className="hash py-1.5">{m.version}</td>
+                      <td className="py-1.5">{m.algorithm}</td>
+                      <td className="tnum py-1.5">{m.prAuc}</td>
+                      <td className="tnum py-1.5">{m.recallAt1pctFpr}</td>
+                      <td className="py-1.5 text-right">{m.active ? '✓' : ''}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <span className="faint">No registered model versions yet.</span>
+              <Empty>No registered model versions yet.</Empty>
             )}
-          </div>
+          </Panel>
         </div>
 
         <CaseDetail id={selectedId} onFeedbackDone={refetch} />
