@@ -1,0 +1,106 @@
+"""
+Output guardrails for LLM-generated prose. This is the enforcement point
+for the architectural invariant: the LLM only renders prose from data that
+has already been retrieved and decided. Anything that violates that gets
+rejected and replaced with a deterministic fallback -- the LLM never gets
+the last word on whether its own output was safe.
+"""
+from __future__ import annotations
+
+import re
+
+REASON_CODE_PATTERN = re.compile(r"\[([A-Z0-9_]+)\]")
+NUMBER_PATTERN = re.compile(r"(?<![\w.])\d[\d,]*\.?\d*%?")
+DECISION_VERBS = re.compile(r"\b(approve|approved|decline|declined|reject|rejected|recommend)\b", re.IGNORECASE)
+# Coarse PII patterns: full PAN (AAAAA9999A), a 12-digit run (Aadhaar-shaped),
+# or a 10-digit run (mobile-shaped). These must never appear in output even
+# if present in context, because context only ever carries masked forms.
+PII_PATTERNS = [
+    re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"),          # PAN format
+    re.compile(r"\b\d{4}\s?\d{4}\s?\d{4}\b"),        # Aadhaar-shaped 12 digits
+    re.compile(r"\b[6-9]\d{9}\b"),                    # Indian mobile-shaped 10 digits
+]
+
+MAX_LENGTH_CHARS = 1200
+
+
+def _extract_reason_codes(text: str) -> list[str]:
+    return REASON_CODE_PATTERN.findall(text)
+
+
+def _extract_numbers(text: str) -> list[str]:
+    return [n.replace(",", "") for n in NUMBER_PATTERN.findall(text)]
+
+
+def validate(
+    narrative: str,
+    whitelisted_codes: set[str],
+    context_text: str,
+) -> tuple[bool, list[str]]:
+    """
+    Returns (grounded: bool, violations: list[str]).
+    grounded=False means the caller MUST discard `narrative` and use the
+    deterministic fallback template instead.
+    """
+    violations = []
+
+    if len(narrative) > MAX_LENGTH_CHARS:
+        violations.append("length_exceeded")
+
+    if DECISION_VERBS.search(narrative):
+        violations.append("decision_verb_used")
+
+    for pat in PII_PATTERNS:
+        if pat.search(narrative):
+            violations.append("raw_pii_pattern_detected")
+            break
+
+    cited_codes = _extract_reason_codes(narrative)
+    for code in cited_codes:
+        if code not in whitelisted_codes:
+            violations.append(f"non_whitelisted_reason_code:{code}")
+
+    context_numbers = set(_extract_numbers(context_text))
+    narrative_numbers = _extract_numbers(narrative)
+    for num in narrative_numbers:
+        # Allow small integers (list positions, counts like "3" signals) that
+        # commonly appear as prose connective tissue without being a
+        # fabricated fact; only flag numbers that look like a genuine
+        # data point (2+ digits, or a decimal, or a %) absent from context.
+        looks_like_data_point = len(num.replace(".", "").replace("%", "")) >= 2
+        if looks_like_data_point and num not in context_numbers:
+            violations.append(f"unsupported_number:{num}")
+
+    return (len(violations) == 0), violations
+
+
+def sanitize_input(text: str) -> str:
+    """
+    Input guardrail for analyst free-text (e.g. a note field) before it
+    enters a prompt: delimits and strips characters commonly used for
+    prompt injection, and caps length.
+    """
+    if not text:
+        return ""
+    text = text.replace("SYSTEM:", "").replace("RULES", "").replace("```", "")
+    text = re.sub(r"[\r\n]+", " ", text)
+    return text[:500]
+
+
+def deterministic_fallback(action: str, reason_codes: list[str], reason_titles: dict[str, str]) -> str:
+    """Used whenever the LLM output fails validation, or the LLM is unavailable."""
+    if not reason_codes:
+        return (
+            f"This application was routed to {action} by the scoring engine. "
+            "No specific reason codes were attached to this decision."
+        )
+    titles = "; ".join(reason_titles.get(c, c) for c in reason_codes)
+    codes_str = " ".join(f"[{c}]" for c in reason_codes)
+    return (
+        f"This application was routed to {action} by the scoring engine, "
+        f"based on the following signals: {titles}. {codes_str}"
+    )
+
+
+def refusal_text() -> str:
+    return "I don't have data on that in this case file."
