@@ -93,7 +93,7 @@ def base_legit(rng, idx):
         "credit_utilisation_pct": round(rng.uniform(5, 55), 2) if cibil_has_file else None,
         "oldest_account_months": int(rng.uniform(12, 180)) if cibil_has_file else None,
         "pan_format_valid": True,
-        "pan_name_match_score": round(max(0.4, rng.gauss(0.93, 0.08)), 3),
+        "pan_name_match_score": round(min(1.0, max(0.4, rng.gauss(0.93, 0.08))), 3),
         "aadhaar_pan_linked": rng.random() > 0.05,
         "name_dob_mismatch": False,
         "digilocker_docs_fetched": rng.choices([0, 1, 2, 3], weights=[0.2, 0.3, 0.3, 0.2])[0],
@@ -134,7 +134,7 @@ def base_legit(rng, idx):
 def apply_synthetic_identity(rng, row):
     sev = rng.uniform(0.3, 1.0)
     row["pan_format_valid"] = rng.random() > (0.5 * sev)
-    row["pan_name_match_score"] = round(max(0.05, rng.gauss(0.75 - 0.55 * sev, 0.12)), 3)
+    row["pan_name_match_score"] = round(min(1.0, max(0.05, rng.gauss(0.75 - 0.55 * sev, 0.12))), 3)
     if rng.random() < 0.5 + 0.35 * sev:
         row["aadhaar_pan_linked"] = False
     row["name_dob_mismatch"] = rng.random() < 0.15 + 0.5 * sev
