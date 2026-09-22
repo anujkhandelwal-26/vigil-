@@ -280,7 +280,7 @@ export default function ApplyDashboard() {
           )}
 
           {result.action === 'STEP_UP' && result.verificationSteps?.length > 0 && (
-            <Panel title="Verification required (Indian step-up ladder)">
+            <Panel title="KYC verification required (Indian step-up ladder)">
               <ol className="list-decimal space-y-1 pl-4 text-[13px]">
                 {result.verificationSteps.map((s) => <li key={s}>{s}</li>)}
               </ol>

@@ -3,9 +3,9 @@
 ## Intended use
 Real-time fraud risk scoring for digital-lending applications in the Indian market (consumer
 durable, personal, two-wheeler, education top-up loans). Output feeds a **four-way policy**
-(APPROVE / STEP_UP / REVIEW / DECLINE), not an automated accept/reject — every DECLINE and REVIEW
-is reviewable by a human analyst, and every STEP_UP routes to additional verification rather than
-rejection.
+(APPROVE / STEP_UP / REVIEW / DECLINE — `STEP_UP` is shown in the UI as **KYC**), not an automated
+accept/reject — every DECLINE and REVIEW is reviewable by a human analyst, and every STEP_UP routes
+to additional verification rather than rejection.
 
 **Not intended for**: production underwriting without a live retrain against real applicant data,
 any decision made without the audit trail and reason-code disclosure this system produces, or any
