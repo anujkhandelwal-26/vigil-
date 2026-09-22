@@ -32,7 +32,7 @@ public class DemoUserSeeder implements CommandLineRunner {
         if (password == null || password.isBlank()) {
             return; // no demo password configured -- skip seeding, nothing to log in with
         }
-        seed("analyst", "Priya Sharma (Analyst)", "ANALYST", password);
+        seed("analyst", "Anuj Khandelwal (Analyst)", "ANALYST", password);
         seed("admin", "Risk Ops Admin", "ADMIN", password);
     }
 
