@@ -1,14 +1,30 @@
 import { useState } from 'react'
 import { useCopilotQueryMutation } from '../app/api'
+import { Button } from './ui'
 
 const SUGGESTED = [
   'Why was this flagged?',
-  'What changed from this customer\'s normal behavior?',
+  "What changed from this customer's normal behavior?",
   'Summarize this case.',
   'Which signals contributed most to the score?',
   'Show me all cases involving this device.',
   'Have we seen a case like this before?',
 ]
+
+function GroundedTag({ grounded, provider, model, latencyMs }) {
+  return (
+    <span
+      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px]"
+      style={{
+        color: grounded ? 'var(--color-riskdown)' : 'var(--color-a-stepup)',
+        borderColor: grounded ? 'var(--color-riskdown)' : 'var(--color-a-stepup)',
+      }}
+    >
+      {grounded ? 'grounded ✓' : 'fallback template'} · {provider}/{model} ·{' '}
+      {latencyMs != null ? `${latencyMs}ms` : ''}
+    </span>
+  )
+}
 
 export default function CopilotChat({ applicationId }) {
   const [messages, setMessages] = useState([])
@@ -27,54 +43,65 @@ export default function CopilotChat({ applicationId }) {
           role: 'assistant',
           text: res.answer,
           grounded: res.grounded,
-          intent: res.intent,
           provider: res.provider,
           model: res.model,
           latencyMs: res.latency_ms,
         },
       ])
-    } catch (err) {
+    } catch {
       setMessages((m) => [...m, { role: 'assistant', text: 'The copilot could not answer that right now.', grounded: false }])
     }
   }
 
   return (
     <div>
-      <div className="chat-log">
+      <div className="mb-3 max-h-80 space-y-2.5 overflow-y-auto">
         {messages.length === 0 && (
-          <span className="faint">Ask about this case — answers are grounded strictly in retrieved case data.</span>
+          <p className="text-[12px] text-ink-faint">
+            Ask about this case — answers are grounded strictly in retrieved case data.
+          </p>
         )}
         {messages.map((m, i) => (
-          <div className={`chat-msg ${m.role}`} key={i}>
+          <div
+            key={i}
+            className={`border px-3 py-2 text-[13px] ${
+              m.role === 'user'
+                ? 'ml-auto max-w-[80%] border-signal/30 bg-[#eef1f8] text-ink'
+                : 'max-w-[92%] border-rule-soft bg-paper text-ink'
+            }`}
+          >
             {m.text}
             {m.role === 'assistant' && (
-              <div style={{ marginTop: 6 }}>
-                <span className={`grounded-badge ${m.grounded ? '' : 'fallback'}`}>
-                  {m.grounded ? 'grounded ✓' : 'fallback template'} · {m.provider}/{m.model} · {m.latencyMs}ms
-                </span>
+              <div className="mt-1.5">
+                <GroundedTag grounded={m.grounded} provider={m.provider} model={m.model} latencyMs={m.latencyMs} />
               </div>
             )}
           </div>
         ))}
-        {isLoading && <div className="chat-msg assistant faint">Thinking…</div>}
+        {isLoading && <p className="text-[12px] text-ink-faint">Thinking…</p>}
       </div>
-      <div style={{ marginBottom: 8 }}>
+
+      <div className="mb-2 flex flex-wrap gap-1.5">
         {SUGGESTED.map((q) => (
-          <button key={q} className="chip suggested-q" style={{ cursor: 'pointer', border: 'none' }} onClick={() => ask(q)}>
+          <button
+            key={q}
+            onClick={() => ask(q)}
+            className="rounded-sm border border-rule bg-paper px-2 py-1 text-[11px] text-ink-muted hover:text-ink"
+          >
             {q}
           </button>
         ))}
       </div>
-      <div className="chat-input">
+
+      <div className="flex gap-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && ask(input)}
           placeholder="Ask a question about this case…"
+          className="min-w-0 flex-1 border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
         />
-        <button className="secondary" onClick={() => ask(input)} disabled={isLoading}>
-          Ask
-        </button>
+        <Button onClick={() => ask(input)} disabled={isLoading}>Ask</Button>
       </div>
     </div>
   )

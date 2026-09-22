@@ -1,29 +1,76 @@
-// Plain CSS bar list instead of a chart library waterfall -- deliberately
-// simple, fast to render, and unambiguous about direction (red = toward
-// fraud, green = away from it), matching the SHAP contribution sign.
+import { useState } from 'react'
+import { Empty } from './ui'
+
+/**
+ * Diverging contribution chart: what pushed this score, and which way.
+ *
+ * Same colour-blind-validated pair as the rest of the ledger (riskup/riskdown,
+ * deltaE 18.3 under deuteranopia) rather than a plain red/green. Direction is
+ * also carried by which side of the zero axis a bar sits on and by its sign,
+ * so the chart never depends on colour alone.
+ */
+const RISK_UP = 'var(--color-riskup)'
+const RISK_DOWN = 'var(--color-riskdown)'
+
 export default function ShapWaterfall({ shapTop }) {
+  const [hovered, setHovered] = useState(null)
+
   if (!shapTop || shapTop.length === 0) {
-    return <span className="faint">No SHAP explanation available for this decision.</span>
+    return <Empty>No SHAP explanation available for this decision.</Empty>
   }
-  const maxAbs = Math.max(...shapTop.map((s) => Math.abs(s.contribution)), 0.0001)
+
+  const max = Math.max(...shapTop.map((s) => Math.abs(s.contribution)), 1e-6)
+
   return (
     <div>
-      {shapTop.map((s, i) => {
-        const pct = Math.min(100, (Math.abs(s.contribution) / maxAbs) * 100)
-        const up = s.direction === 'increases_risk'
-        return (
-          <div className="shap-row" key={i}>
-            <span className="mono" title={s.feature}>{s.feature}</span>
-            <div className="shap-bar-track">
-              <div
-                className={`shap-bar-fill ${up ? 'up' : 'down'}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="mono faint">{s.contribution > 0 ? '+' : ''}{s.contribution.toFixed(3)}</span>
-          </div>
-        )
-      })}
+      <div className="mb-3 flex items-center gap-4 text-[11px] text-ink-muted">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-3 rounded-[1px]" style={{ background: RISK_DOWN }} />
+          lowers risk
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-3 rounded-[1px]" style={{ background: RISK_UP }} />
+          raises risk
+        </span>
+      </div>
+
+      <ul className="space-y-1.5">
+        {shapTop.map((s, i) => {
+          const up = s.direction === 'increases_risk'
+          const width = (Math.abs(s.contribution) / max) * 50
+          const active = hovered === s.feature
+          return (
+            <li
+              key={i}
+              onMouseEnter={() => setHovered(s.feature)}
+              onMouseLeave={() => setHovered(null)}
+              className="grid grid-cols-[1fr_auto] items-center gap-3"
+            >
+              <div>
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <span className="hash text-ink" title={s.feature}>{s.feature}</span>
+                </div>
+                <div className="relative h-3 bg-rule-soft/60">
+                  <div className="absolute inset-y-0 left-1/2 w-px bg-rule" />
+                  <div
+                    className="absolute inset-y-0 transition-[opacity]"
+                    style={{
+                      background: up ? RISK_UP : RISK_DOWN,
+                      opacity: hovered && !active ? 0.45 : 1,
+                      width: `${width}%`,
+                      left: up ? '50%' : `${50 - width}%`,
+                      borderRadius: up ? '0 3px 3px 0' : '3px 0 0 3px',
+                    }}
+                  />
+                </div>
+              </div>
+              <span className="tnum w-16 text-right text-[11px] text-ink-muted">
+                {s.contribution > 0 ? '+' : ''}{s.contribution.toFixed(3)}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

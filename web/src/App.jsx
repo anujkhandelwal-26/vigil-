@@ -4,21 +4,28 @@ import { setCredentials, logout } from './app/authSlice'
 import { useLoginMutation } from './app/api'
 import ApplyDashboard from './pages/ApplyDashboard'
 import AnalystDashboard from './pages/AnalystDashboard'
+import { Button } from './components/ui'
 
-function LoginScreen() {
+const SURFACES = [
+  { key: 'apply', label: 'Application' },
+  { key: 'analyst', label: 'Analyst' },
+]
+
+function SignIn({ onSignedIn }) {
   const dispatch = useDispatch()
   const [username, setUsername] = useState('analyst')
   const [password, setPassword] = useState('')
   const [login, { isLoading }] = useLoginMutation()
   const [error, setError] = useState(null)
 
-  async function handleSubmit(e) {
-    e.preventDefault()
+  async function submit(event) {
+    event.preventDefault()
     setError(null)
     try {
       const res = await login({ username, password }).unwrap()
       dispatch(setCredentials(res))
-    } catch (err) {
+      onSignedIn()
+    } catch {
       // Deliberately uniform error text -- backend gives no signal about
       // which field was wrong (see AuthController.java).
       setError('Those details did not match an account.')
@@ -26,29 +33,44 @@ function LoginScreen() {
   }
 
   return (
-    <div className="login-wrap">
-      <form className="card login-card" onSubmit={handleSubmit}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 10px var(--accent)' }} />
-          <h1 style={{ margin: 0 }}>VIGIL</h1>
-        </div>
-        <p className="muted" style={{ marginTop: 0, marginBottom: 18 }}>
-          Real-time fraud decisioning for Indian digital lending
+    <div className="flex h-full items-center justify-center p-6">
+      <form onSubmit={submit} className="w-full max-w-sm">
+        <h1 className="text-[20px] font-semibold tracking-tight">VIGIL</h1>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
+          Real-time fraud decisioning for Indian digital lending.
         </p>
-        <div className="field">
-          <label>Username</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} />
+
+        <div className="mt-6 space-y-3">
+          <label className="block">
+            <span className="text-[12px] text-ink-muted">Username</span>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              className="mt-1 w-full border border-rule bg-surface px-2.5 py-2 text-[14px]"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[12px] text-ink-muted">Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              className="mt-1 w-full border border-rule bg-surface px-2.5 py-2 text-[14px]"
+            />
+          </label>
         </div>
-        <div className="field">
-          <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-        <button className="primary" type="submit" disabled={isLoading} style={{ width: '100%' }}>
+
+        {error && <p className="mt-3 text-[13px] text-[#9c3211]">{error}</p>}
+
+        <Button variant="primary" className="mt-4 w-full" disabled={isLoading}>
           {isLoading ? 'Signing in…' : 'Sign in'}
-        </button>
-        {error && <div className="error-text">{error}</div>}
-        <p className="faint" style={{ marginTop: 16 }}>
-          Demo accounts: <span className="mono">analyst</span> / <span className="mono">admin</span>
+        </Button>
+
+        <p className="mt-6 border-t border-rule-soft pt-3 text-[11px] leading-relaxed text-ink-faint">
+          Demo accounts: <span className="hash">analyst</span> / <span className="hash">admin</span>.
+          Retraining the model requires the admin role.
         </p>
       </form>
     </div>
@@ -58,33 +80,49 @@ function LoginScreen() {
 export default function App() {
   const { token, displayName, role } = useSelector((s) => s.auth)
   const dispatch = useDispatch()
-  const [tab, setTab] = useState('apply')
+  const [surface, setSurface] = useState('apply')
 
-  if (!token) return <LoginScreen />
+  if (!token) {
+    return <SignIn onSignedIn={() => {}} />
+  }
 
   return (
-    <div className="app-shell">
-      <div className="topbar">
-        <div className="brand">
-          <span className="dot" />
-          VIGIL
+    <div className="flex h-full flex-col">
+      <header className="flex shrink-0 items-center gap-6 border-b border-rule bg-surface px-5 py-2.5">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[15px] font-semibold tracking-tight">VIGIL</span>
+          <span className="hidden text-[12px] text-ink-faint sm:inline">
+            fraud decisioning
+          </span>
         </div>
-        <nav>
-          <button className={tab === 'apply' ? 'active' : ''} onClick={() => setTab('apply')}>
-            Application
-          </button>
-          <button className={tab === 'analyst' ? 'active' : ''} onClick={() => setTab('analyst')}>
-            Analyst
-          </button>
+
+        <nav className="flex gap-1">
+          {SURFACES.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setSurface(item.key)}
+              aria-current={surface === item.key}
+              className={`rounded-sm px-2.5 py-1 text-[13px] transition-colors ${
+                surface === item.key
+                  ? 'bg-paper font-medium text-ink'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
-        <div className="who">
-          <span>{displayName} · {role}</span>
-          <button onClick={() => dispatch(logout())}>Sign out</button>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-[12px] text-ink-faint">{displayName} · {role}</span>
+          <Button onClick={() => dispatch(logout())}>Sign out</Button>
         </div>
-      </div>
-      <div className="content">
-        {tab === 'apply' ? <ApplyDashboard /> : <AnalystDashboard />}
-      </div>
+      </header>
+
+      <main className="min-h-0 flex-1 overflow-y-auto bg-paper">
+        {surface === 'apply' && <ApplyDashboard />}
+        {surface === 'analyst' && <AnalystDashboard />}
+      </main>
     </div>
   )
 }

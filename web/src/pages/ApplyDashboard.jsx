@@ -4,6 +4,7 @@ import { useSubmitApplicationMutation } from '../app/api'
 import ActionBadge from '../components/ActionBadge'
 import ReasonChips from '../components/ReasonChips'
 import ShapWaterfall from '../components/ShapWaterfall'
+import { Button, Panel } from '../components/ui'
 
 const FIELDS = [
   // block, key, label, type
@@ -69,39 +70,46 @@ const FIELDS = [
 
 const BLOCKS = [...new Set(FIELDS.map((f) => f[0]))]
 
-function Field({ block, k, label, type, options, value, onChange }) {
+function FormField({ label, type, options, value, onChange, k }) {
   if (type === 'boolean') {
     return (
-      <div className="field">
-        <label>{label}</label>
-        <select value={String(value)} onChange={(e) => onChange(k, e.target.value === 'true')}>
+      <label className="block">
+        <span className="text-[12px] text-ink-muted">{label}</span>
+        <select
+          value={String(value)}
+          onChange={(e) => onChange(k, e.target.value === 'true')}
+          className="mt-1 w-full border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
+        >
           <option value="true">true</option>
           <option value="false">false</option>
         </select>
-      </div>
+      </label>
     )
   }
   if (type === 'select') {
     return (
-      <div className="field">
-        <label>{label}</label>
-        <select value={value ?? ''} onChange={(e) => onChange(k, e.target.value)}>
-          {options.map((o) => (
-            <option key={o} value={o}>{o}</option>
-          ))}
+      <label className="block">
+        <span className="text-[12px] text-ink-muted">{label}</span>
+        <select
+          value={value ?? ''}
+          onChange={(e) => onChange(k, e.target.value)}
+          className="mt-1 w-full border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
+        >
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
-      </div>
+      </label>
     )
   }
   return (
-    <div className="field">
-      <label>{label}</label>
+    <label className="block">
+      <span className="text-[12px] text-ink-muted">{label}</span>
       <input
         type={type === 'number' ? 'number' : 'text'}
         value={value ?? ''}
         onChange={(e) => onChange(k, type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)}
+        className="tnum mt-1 w-full border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
       />
-    </div>
+    </label>
   )
 }
 
@@ -145,120 +153,146 @@ export default function ApplyDashboard() {
     shapTop = null
   }
 
+  const noveltyGap = result?.anomalyScore != null && Number(result.anomalyScore) > 0.85 && Number(result.riskScore) < 0.15
+
   return (
-    <div>
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1>Loan Application</h1>
-          <div className="field" style={{ minWidth: 260 }}>
-            <label>Scenario (prefills, all editable)</label>
-            <select value={scenarioKey} onChange={(e) => applyScenario(e.target.value)}>
-              {Object.entries(SCENARIOS).map(([k, s]) => (
-                <option key={k} value={k}>{s.label}</option>
-              ))}
-            </select>
-          </div>
+    <div className="mx-auto max-w-3xl space-y-4 p-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[20px] font-semibold leading-tight">Loan application</h1>
+          <p className="mt-0.5 text-[13px] text-ink-muted">
+            Every field is editable after picking a scenario.
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="field" style={{ maxWidth: 320, marginBottom: 16 }}>
-            <label>Application reference</label>
-            <input value={form.externalRef} onChange={(e) => updateField('externalRef', e.target.value)} />
-          </div>
-
-          {BLOCKS.map((block) => (
-            <fieldset key={block}>
-              <legend>{block}</legend>
-              <div className="form-grid">
-                {FIELDS.filter((f) => f[0] === block).map(([, k, label, type, options]) => (
-                  <Field key={k} block={block} k={k} label={label} type={type} options={options}
-                         value={form[k]} onChange={updateField} />
-                ))}
-              </div>
-            </fieldset>
-          ))}
-
-          <button className="primary" type="submit" disabled={isLoading}>
-            {isLoading ? 'Scoring…' : 'Submit application'}
-          </button>
-        </form>
+        <label className="block w-64">
+          <span className="text-[12px] text-ink-muted">Scenario (prefills, all editable)</span>
+          <select
+            value={scenarioKey}
+            onChange={(e) => applyScenario(e.target.value)}
+            className="mt-1 w-full border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
+          >
+            {Object.entries(SCENARIOS).map(([k, s]) => (
+              <option key={k} value={k}>{s.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
+      <Panel>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <label className="block max-w-xs">
+            <span className="text-[12px] text-ink-muted">Application reference</span>
+            <input
+              value={form.externalRef}
+              onChange={(e) => updateField('externalRef', e.target.value)}
+              className="mt-1 w-full border border-rule bg-surface px-2.5 py-1.5 text-[13px]"
+            />
+          </label>
+
+          {BLOCKS.map((block) => (
+            <div key={block} className="border border-rule-soft">
+              <header className="border-b border-rule-soft bg-paper px-3 py-1.5">
+                <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">{block}</h3>
+              </header>
+              <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3">
+                {FIELDS.filter((f) => f[0] === block).map(([, k, label, type, options]) => (
+                  <FormField key={k} k={k} label={label} type={type} options={options}
+                             value={form[k]} onChange={updateField} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="flex justify-end">
+            <Button variant="primary" disabled={isLoading}>
+              {isLoading ? 'Scoring…' : 'Submit application'}
+            </Button>
+          </div>
+        </form>
+      </Panel>
+
       {error && (
-        <div className="card">
-          <span className="error-text">{typeof error === 'string' ? error : JSON.stringify(error)}</span>
+        <div className="border border-[#e3c2b6] bg-[#fdf4f1] px-4 py-3 text-[13px] text-[#9c3211]">
+          {error}
         </div>
       )}
 
       {result && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>Decision</h2>
-            <ActionBadge action={result.action} />
-          </div>
-          <div className="grid cols-4" style={{ marginBottom: 16 }}>
-            <div className="kpi-tile">
-              <div className="label">Risk score (supervised)</div>
-              <div className="value">{Number(result.riskScore).toFixed(3)}</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Anomaly score (novelty)</div>
-              <div className="value" style={{ color: result.anomalyScore != null && Number(result.anomalyScore) > 0.85 ? 'var(--decline)' : undefined }}>
-                {result.anomalyScore != null ? Number(result.anomalyScore).toFixed(3) : '—'}
+        <>
+          <Panel>
+            <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
+              <div>
+                <p className="text-[12px] text-ink-muted">Risk score (supervised)</p>
+                <p className="tnum text-[28px] font-semibold leading-none">
+                  {Number(result.riskScore).toFixed(3)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[12px] text-ink-muted">Anomaly score (novelty)</p>
+                <p
+                  className="tnum text-[18px] font-medium"
+                  style={{ color: result.anomalyScore != null && Number(result.anomalyScore) > 0.85 ? 'var(--color-riskup)' : undefined }}
+                >
+                  {result.anomalyScore != null ? Number(result.anomalyScore).toFixed(3) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1.5 text-[12px] text-ink-muted">Decision</p>
+                <ActionBadge action={result.action} />
+              </div>
+              <div>
+                <p className="text-[12px] text-ink-muted">Server latency</p>
+                <p className="tnum text-[18px] font-medium">{result.latencyMs}ms</p>
+                <p className="tnum text-[11px] text-ink-faint">round-trip {result._clientRoundTripMs}ms</p>
+              </div>
+              <div className="ml-auto text-right">
+                <p className="text-[12px] text-ink-muted">Degraded</p>
+                <p className="text-[13px] font-medium" style={{ color: result.degraded ? 'var(--color-riskup)' : 'var(--color-riskdown)' }}>
+                  {result.degraded ? 'yes (rules-only)' : 'no'}
+                </p>
               </div>
             </div>
-            <div className="kpi-tile">
-              <div className="label">Server latency</div>
-              <div className="value">{result.latencyMs}ms</div>
-              <div className="sub">round-trip {result._clientRoundTripMs}ms</div>
-            </div>
-            <div className="kpi-tile">
-              <div className="label">Degraded</div>
-              <div className="value" style={{ fontSize: 16, color: result.degraded ? 'var(--decline)' : 'var(--approve)' }}>
-                {result.degraded ? 'yes (rules-only)' : 'no'}
-              </div>
-            </div>
-          </div>
+          </Panel>
 
-          {result.anomalyScore != null && Number(result.anomalyScore) > 0.85 && Number(result.riskScore) < 0.15 && (
-            <div className="card" style={{ background: 'rgba(224,90,90,0.1)', border: '1px solid var(--decline)', marginBottom: 16 }}>
-              <strong style={{ color: 'var(--decline)' }}>⚠ NOVEL PATTERN DETECTED</strong>
-              <p className="muted" style={{ margin: '6px 0 0 0' }}>
+          {noveltyGap && (
+            <div className="border-l-2 bg-surface px-4 py-3" style={{ borderColor: 'var(--color-riskup)' }}>
+              <p className="text-[13px] font-medium" style={{ color: 'var(--color-riskup)' }}>
+                Novel pattern detected
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
                 The supervised model scores this application as low-risk ({Number(result.riskScore).toFixed(3)}) —
                 it has never seen this behavioural signature in training. But the unsupervised novelty
                 channel flags it as highly anomalous ({Number(result.anomalyScore).toFixed(3)}). This is
                 exactly the gap a purely supervised system would miss: a fraud typology the model was
-                never trained on. Route to REVIEW and use the copilot / feedback loop to confirm and retrain.
+                never trained on. Route to review and use the copilot / feedback loop to confirm and retrain.
               </p>
             </div>
           )}
 
-          <h3>Reason codes</h3>
-          <ReasonChips codes={result.reasonCodes} />
+          <Panel title="Reason codes">
+            <ReasonChips codes={result.reasonCodes} />
+          </Panel>
 
           {shapTop && (
-            <>
-              <h3 style={{ marginTop: 16 }}>Top contributing signals</h3>
+            <Panel title="Top contributing signals">
               <ShapWaterfall shapTop={shapTop} />
-            </>
+            </Panel>
           )}
 
           {result.action === 'STEP_UP' && result.verificationSteps?.length > 0 && (
-            <>
-              <h3 style={{ marginTop: 16 }}>Verification required (Indian step-up ladder)</h3>
-              <ol>
+            <Panel title="Verification required (Indian step-up ladder)">
+              <ol className="list-decimal space-y-1 pl-4 text-[13px]">
                 {result.verificationSteps.map((s) => <li key={s}>{s}</li>)}
               </ol>
-            </>
+            </Panel>
           )}
 
           {result.action === 'APPROVE' && result.keyFactStatement && (
-            <>
-              <h3 style={{ marginTop: 16 }}>Key Fact Statement (RBI Digital Lending Directions, 2025)</h3>
-              <p className="muted">{result.keyFactStatement}</p>
-            </>
+            <Panel title="Key Fact Statement (RBI Digital Lending Directions, 2025)">
+              <p className="font-serif text-[14px] leading-relaxed text-ink">{result.keyFactStatement}</p>
+            </Panel>
           )}
-        </div>
+        </>
       )}
     </div>
   )
