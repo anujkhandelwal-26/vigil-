@@ -1,7 +1,7 @@
 /** Decision actions carry meaning, so they are labelled as well as coloured. */
 const ACTION_STYLE = {
   APPROVE:  { bg: '#e6f0ea', fg: 'var(--color-a-approve)', label: 'Approve' },
-  STEP_UP:  { bg: '#fbf0e4', fg: 'var(--color-a-stepup)', label: 'Step-up' },
+  STEP_UP:  { bg: '#fbf0e4', fg: 'var(--color-a-stepup)', label: 'KYC' },
   REVIEW:   { bg: '#e8eef6', fg: 'var(--color-a-review)', label: 'Review' },
   DECLINE:  { bg: '#f8e9e5', fg: 'var(--color-a-decline)', label: 'Decline' },
 }

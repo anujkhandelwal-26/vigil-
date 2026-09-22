@@ -37,3 +37,6 @@ data/generated/
 *.log
 .run/
 .vigil-run/
+
+# internal recording notes -- not for the public repo
+docs/demo-script.md

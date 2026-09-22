@@ -5,7 +5,7 @@
 VIGIL is a real-time fraud decisioning platform for digital lending in India. A LightGBM model
 scores every loan application in milliseconds, SHAP explains each score, and a retrieval-augmented
 LLM copilot answers analyst questions **strictly from retrieved case data** — never from parametric
-guesswork. Decisions route to one of four actions (Approve / Step-up verification / Review /
+guesswork. Decisions route to one of four actions (Approve / KYC verification / Review /
 Decline) instead of a binary accept-reject, cutting hard declines without letting fraud through.
 
 ---
@@ -14,6 +14,7 @@ Decline) instead of a binary accept-reject, cutting hard declines without lettin
 
 - [Why this design](#why-this-design)
 - [Architecture](#architecture)
+- [Swapping the LLM / embedding provider](#swapping-the-llm--embedding-provider)
 - [Quick start](#quick-start)
 - [The dataset the model trains on](#the-dataset-the-model-trains-on)
 - [API reference](#api-reference)
@@ -33,7 +34,7 @@ read about:**
 |---|---|
 | **Real-time** | `/api/v1/applications` responds in **p95 ≈ 99ms** end-to-end (measured, see [Testing](#testing)). The LLM is never on this path. |
 | **Self-learning** | `POST /api/v1/models/retrain` (ADMIN only) rebuilds the model from the dataset + every `analyst_feedback` row at higher sample weight, and **hot-swaps only if the new holdout PR-AUC ≥ the incumbent's**. Measured directly: one analyst-confirmed case moved a held-out fraud pattern's score from **0.000 → 0.714** after a single retrain. |
-| **Fewer false positives** | Four actions, not two — `STEP_UP` and `REVIEW` absorb the grey zone that a binary threshold would hard-decline. Live on the Analyst dashboard: binary decline 3.48% → four-way 3.46%, binary FP rate 0.023% → four-way 0.012%. |
+| **Fewer false positives** | Four actions, not two — `STEP_UP` (shown in the UI as **KYC**) and `REVIEW` absorb the grey zone that a binary threshold would hard-decline. Live on the Analyst dashboard: binary decline 3.48% → four-way 3.46%, binary FP rate 0.023% → four-way 0.012%. |
 | **Adapts to new fraud vectors** | An `IsolationForest` novelty channel runs in parallel with the supervised model, deliberately **not blended** into the risk score. The "New bot ring" scenario in the Application dashboard scores **risk=0.000, anomaly=0.949** — the supervised model fully misses it, the novelty channel screams. |
 
 **Fraud-ring detection, live**: submitting several applications that share a device/bank/mobile
@@ -120,6 +121,55 @@ important architectural decision in the system — see `docs/architecture.md`.
 
 Entity lookup ("show me all cases on this device") deliberately stays **plain SQL** — exact
 identifier joins are the right tool for that question, not a vector search.
+
+---
+
+## Swapping the LLM / embedding provider
+
+Ollama is the default because it's local and free, but it's one of three interchangeable
+implementations behind a single interface — swapping providers is a `.env` change in `ml-service`,
+not a rewrite anywhere else. Nothing in `decision-api` or the frontend knows which provider is active.
+
+Two independent settings control this, both in `.env`:
+
+| Setting | Governs | Implemented options |
+|---|---|---|
+| `LLM_PROVIDER` | Narrative generation (`/internal/narrative`) and the RAG copilot (`/internal/copilot`) — both go through `LlmProvider` (`services/ml-service/app/llm/provider.py`) | `ollama` (default) · `bedrock` · `anthropic` |
+| `EMBEDDING_PROVIDER` | Similar-case retrieval, policy retrieval, and copilot intent routing — all go through `EmbeddingProvider` (`services/ml-service/app/embeddings.py`) | `ollama` (default) · `bedrock` |
+
+They're independent: you can move the LLM to Bedrock while leaving embeddings on Ollama, or vice
+versa. `EMBEDDING_PROVIDER` has no `anthropic` option because Anthropic doesn't expose an embeddings
+endpoint.
+
+### To use AWS Bedrock
+1. In `.env`: `LLM_PROVIDER=bedrock` and/or `EMBEDDING_PROVIDER=bedrock`, plus `AWS_REGION`,
+   `BEDROCK_LLM_MODEL_ID` (default `anthropic.claude-3-5-sonnet-20241022-v2:0`) and
+   `BEDROCK_EMBED_MODEL_ID` (default `amazon.titan-embed-text-v2:0`).
+2. `services/ml-service/.venv/bin/pip install boto3` — deliberately **not** in `requirements.txt`, so
+   the default local path doesn't need it.
+3. AWS credentials come from the standard credential chain (environment variables, `~/.aws/credentials`
+   profile, or an instance role) — never put access keys in `.env`.
+4. **Embedding dimension gotcha, read before switching `EMBEDDING_PROVIDER`**: the schema's vector
+   columns (`case_embedding.embedding`, `fraud_ring.centroid`, `policy_chunk.embedding`,
+   `reason_code.embedding` — see `db/V1__schema.sql`) are fixed at `vector(768)` to match
+   `nomic-embed-text`. Titan Embeddings v2 supports 256, 512 or 1024 dimensions — **not 768**. Either
+   request a supported dimension and migrate those columns to match, or leave `EMBEDDING_PROVIDER=ollama`
+   and only move the LLM to Bedrock (fully supported, and the simpler path if you just want a stronger
+   narrative/copilot model without touching pgvector).
+
+### To use the Anthropic API directly (not via Bedrock)
+1. In `.env`: `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=<your key>`.
+2. `services/ml-service/.venv/bin/pip install anthropic` (also not a base dependency).
+3. Leave `EMBEDDING_PROVIDER` on `ollama` or `bedrock` — see above, there's no Anthropic embeddings
+   option.
+
+### What's real vs. aspirational here
+`bedrock_provider.py`, `anthropic_provider.py` and the Bedrock embedding path are structurally correct
+against each API's documented request/response shape (see their docstrings) but were built and
+reviewed **without live AWS or Anthropic credentials in this environment** — exercise them against a
+real account before depending on them. Setting either provider variable to anything other than the
+options in the table above raises `ValueError: unknown LLM_PROVIDER` / `unknown EMBEDDING_PROVIDER`
+the first time it's used, not at startup.
 
 ---
 

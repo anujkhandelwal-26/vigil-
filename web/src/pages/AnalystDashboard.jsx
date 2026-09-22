@@ -218,7 +218,7 @@ export default function AnalystDashboard() {
         <KpiTile label="Decisions (24h)" value={kpis?.decisionsLast24h ?? '—'} />
         <KpiTile label="p95 latency" value={kpis ? `${Number(kpis.p95LatencyMs).toFixed(0)}ms` : '—'} />
         <KpiTile label="Approve" value={byAction.APPROVE ?? 0} />
-        <KpiTile label="Step-up" value={byAction.STEP_UP ?? 0} />
+        <KpiTile label="KYC" value={byAction.STEP_UP ?? 0} />
         <KpiTile label="Review" value={byAction.REVIEW ?? 0} />
         <KpiTile label="Decline" value={byAction.DECLINE ?? 0} />
       </div>
@@ -226,7 +226,7 @@ export default function AnalystDashboard() {
       {costCurve && costCurve.four_way_decline_rate != null && (
         <Panel title="False-positive reduction — four actions, not two">
           <p className="mb-3 text-[12px] leading-relaxed text-ink-muted">
-            We didn't move the threshold. We added two more actions (step-up, review) between
+            We didn't move the threshold. We added two more actions (KYC, review) between
             approve and decline, so borderline applicants face friction instead of rejection.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -245,7 +245,7 @@ export default function AnalystDashboard() {
             <p className="mt-3 border-t border-rule-soft pt-2 text-[11px] leading-relaxed text-ink-faint">
               Cost assumptions: {inr(costCurve.cost_assumptions_inr.C_FN)} per missed fraud ·{' '}
               {inr(costCurve.cost_assumptions_inr.C_FP)} per wrongly-declined good customer ·{' '}
-              {inr(costCurve.cost_assumptions_inr.C_STEPUP)} step-up friction ·{' '}
+              {inr(costCurve.cost_assumptions_inr.C_STEPUP)} KYC friction ·{' '}
               {inr(costCurve.cost_assumptions_inr.C_REVIEW)} analyst review.
               Thresholds: low={Number(costCurve.thresholds?.low).toFixed(2)},
               high={Number(costCurve.thresholds?.high).toFixed(2)},
@@ -285,7 +285,7 @@ export default function AnalystDashboard() {
                 <option value="ALL">All actions</option>
                 <option value="DECLINE">Decline</option>
                 <option value="REVIEW">Review</option>
-                <option value="STEP_UP">Step-up</option>
+                <option value="STEP_UP">KYC</option>
                 <option value="APPROVE">Approve</option>
               </select>
             }
