@@ -25,7 +25,7 @@ public record ApplicationSubmitRequest(
         @NotNull @Min(1) @Max(60) Integer tenureMonths,
         @NotBlank String channel,
 
-        Integer cibilScore,
+        @Min(300) @Max(900) Integer cibilScore,
         @NotNull Boolean isNewToCredit,
         @NotNull @Min(0) Integer activeLoans,
         @NotNull @Min(0) Integer enquiries30d,
@@ -51,7 +51,7 @@ public record ApplicationSubmitRequest(
         @NotNull Boolean vpnOrProxy,
 
         @NotNull @DecimalMin("0") BigDecimal formFillSeconds,
-        BigDecimal typingSpeedCpm,
+        @Min(0) BigDecimal typingSpeedCpm,
         @NotNull @Min(0) Integer pasteEvents,
         @NotNull @Min(0) Integer fieldCorrections,
         @NotNull @Min(0) Integer sessionScreens,
