@@ -40,3 +40,11 @@ data/generated/
 
 # internal recording notes -- not for the public repo
 docs/demo-script.md
+
+# local tooling and private docs, not for the public repo
+.agents/
+.claude/
+docs/pitch/
+brag-output*/
+skills-lock.json
+*:Zone.Identifier
