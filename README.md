@@ -1,6 +1,8 @@
 # VIGIL — Real-Time Fraud Detection & Prevention for Indian Digital Lending
 
-**Synchrony Solution Development Challenge · PS-II 2026-27 · Roll 2022B2A81416G**
+<p align="center">
+  <img src="docs/media/vigil-demo.gif" alt="VIGIL demo: score, explain, route, catch novel fraud, ask the copilot" width="100%">
+</p>
 
 VIGIL is a real-time fraud decisioning platform for digital lending in India. A LightGBM model
 scores every loan application in milliseconds, SHAP explains each score, and a retrieval-augmented
@@ -12,6 +14,7 @@ Decline) instead of a binary accept-reject, cutting hard declines without lettin
 
 ## Table of contents
 
+- [How it works](#how-it-works)
 - [Why this design](#why-this-design)
 - [Architecture](#architecture)
 - [Swapping the LLM / embedding provider](#swapping-the-llm--embedding-provider)
@@ -22,6 +25,39 @@ Decline) instead of a binary accept-reject, cutting hard declines without lettin
 - [Responsible AI](#responsible-ai)
 - [Testing](#testing)
 - [Repository layout](#repository-layout)
+
+---
+
+## How it works
+
+**1. An application comes in.** The loan form captures device, behavioural and banking signals
+(device reuse, emulator flag, form-fill time, paste events, penny-drop name match…). Pick a
+scenario in the Application dashboard, or edit any field yourself.
+
+![Loan application form](docs/media/flow-1-apply.jpg)
+
+**2. It's scored and explained in milliseconds.** LightGBM returns a risk score, the novelty
+channel returns an anomaly score, and SHAP breaks the score down into its top contributing
+signals, alongside plain-language reason codes.
+
+![Risk score, reason codes and SHAP waterfall](docs/media/flow-2-score-explain.jpg)
+
+**3. It's routed to one of four actions.** Approve, KYC verification, Review or Decline, rather
+than yes or no. The grey zone goes to KYC or Review instead of a hard decline, which halves the
+false-positive rate.
+
+![Approve, KYC, Review, Decline](docs/media/flow-3-four-actions.jpg)
+
+**4. Unseen fraud still gets flagged.** A fraud pattern the model was never trained on can score
+risk 0.000 and still be caught by the IsolationForest novelty channel (anomaly 0.949), then
+routed to Review.
+
+![Novel pattern detected](docs/media/flow-4-novelty.jpg)
+
+**5. Analysts ask the copilot.** It answers only from retrieved case data and tags every answer
+as grounded. Analyst verdicts feed back into retraining.
+
+![Analyst copilot grounded answer](docs/media/flow-5-copilot.jpg)
 
 ---
 
